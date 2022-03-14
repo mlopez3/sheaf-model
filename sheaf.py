@@ -9,7 +9,8 @@ Miguel Lopez
 
 Things to change: 
     1) may want to enforce every object and attrib list is sorted during initialization
-    2) Add other residuum functions 
+    2) Laplcian needs to be fixed: need to update nodes all at once at the END of the algroithm
+
 '''
 
 
@@ -36,6 +37,9 @@ class FuzzySet(dict):
         
     def __str__(self):
         dict.__str__(self)
+        
+    def __eq__(self):
+        dict.__eq__(self)
         
     # Computes the meet of two fuzzy sets
     def meet(fSet1,fSet2):
@@ -155,14 +159,25 @@ class Relation:
  '''
 class Sheaf(nx.Graph):
     
-    def __init__(self):
+    
+    def __init__(self, residuum = 'luka'):
         nx.Graph.__init__(self);
         self.relations = dict() 
+        self.res = residuum
         return
+
     
-    # function used in computing Laplacian, subject to change 
+    # function used in computing Laplacian
     def residuum(self, a, b):
-        return min(np.around(1.0-a+b,decimals=3),1)
+        if self.res == 'luka':
+            return min(np.around(1.0-a+b,decimals=3),1)
+        elif self.res == 'godel':
+            if (a <= b): return 1
+            else: return b
+        elif self.res== 'prod':
+            if (a <= b): return 1
+            else: return b/a
+        
         
     # vertices are named by their integer index 
     # an object of class Vertex is input in the second argument
@@ -209,37 +224,25 @@ class Sheaf(nx.Graph):
         return self.edges[edgeIndices[0], edgeIndices[1] ]['edge']
     
     def Laplacian(self):
-       for node in list(self.nodes):
-           updates = []
-           for nghbr in self.neighbors(node):
-               if node > nghbr:
-                   edgeIndices = (nghbr, node)
-               else: edgeIndices = (node, nghbr)
-               attrib_fSet1 = self.deriv_up(node, edgeIndices)
-               attrib_fSet2 = self.deriv_up(nghbr, edgeIndices)
-               meet = FuzzySet.meet(attrib_fSet1, attrib_fSet2)
-               update = self.deriv_down(node, edgeIndices, meet)
-               updates.append(update)
-           new_state = FuzzySet.join2(updates) 
-           self.updateVertex(node, new_state)
-       return
+        new_states = []
+        for node in list(self.nodes):
+            updates = []
+            for nghbr in self.neighbors(node):
+                if node > nghbr:
+                    edgeIndices = (nghbr, node)
+                else: edgeIndices = (node, nghbr)
+                attrib_fSet1 = self.deriv_up(node, edgeIndices)
+                attrib_fSet2 = self.deriv_up(nghbr, edgeIndices)
+                meet = FuzzySet.meet(attrib_fSet1, attrib_fSet2)
+                update = self.deriv_down(node, edgeIndices, meet)
+                updates.append(update)
+            new_state = FuzzySet.join2(updates) 
+            new_states.append((node,new_state))
+        for state in new_states:
+            self.updateVertex(state[0], state[1])
+        return
         
-    # swap meets and joins
-    def Laplacian2(self):
-       for node in list(self.nodes):
-           updates = []
-           for nghbr in self.neighbors(node):
-               if node > nghbr:
-                   edgeIndices = (nghbr, node)
-               else: edgeIndices = (node, nghbr)
-               attrib_fSet1 = self.deriv_up(node, edgeIndices)
-               attrib_fSet2 = self.deriv_up(nghbr, edgeIndices)
-               join = FuzzySet.meet(attrib_fSet1, attrib_fSet2)
-               update = self.deriv_down(node, edgeIndices, join)
-               updates.append(update)
-           new_state = FuzzySet.meet2(updates) 
-           self.updateVertex(node, new_state)
-       return
+
 
     def deriv_up(self, vertIndex, edgeIndices):
         vert = self.getVertex(vertIndex)
@@ -314,3 +317,12 @@ class Sheaf(nx.Graph):
             for node in list(self.nodes):
                 print('Node ' + str(node) + ' after ' + str(i) + ' iterations: ' +new_sheaf.getVertex(node).fSet.__repr__())
             print()
+                        
+    def isSection(self):
+        new_sheaf = copy.deepcopy(self)
+        new_sheaf.Laplacian()
+        isSection = True
+        for node in list(self.nodes):
+            if self.getVertex(node).fSet != new_sheaf.getVertex(node).fSet:
+                isSection = False
+        return isSection
