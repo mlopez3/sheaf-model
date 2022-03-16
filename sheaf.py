@@ -1,25 +1,18 @@
+import os
 import networkx as nx
 import numpy as np
 import warnings
 import copy
-'''
-A Sheaf of Lattices Network Model
-
-Miguel Lopez
-
-Things to change: 
-    1) may want to enforce every object and attrib list is sorted during initialization
-    2) Laplcian needs to be fixed: need to update nodes all at once at the END of the algroithm
-
-'''
-
-
-
 
 '''
  The FuzzySet class is a simple subclass of python's dictionaries with some 
 convenient functions. 
 '''
+
+class tnorm:
+    def __init__(self, domain)
+
+
 class FuzzySet(dict):
 
     def __init__(self, domain, values):
