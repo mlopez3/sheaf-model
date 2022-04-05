@@ -2,14 +2,12 @@ import networkx as nx
 import numpy as np
 import warnings
 import copy
+import matplotlib.pyplot as plt
+import matplotlib as mpl
 '''
 A Sheaf of Lattices Network Model
 
 Miguel Lopez
-
-Things to change: 
-    1) may want to enforce every object and attrib list is sorted during initialization
-    2) Laplcian needs to be fixed: need to update nodes all at once at the END of the algroithm
 
 '''
 
@@ -40,6 +38,7 @@ class FuzzySet(dict):
         
     def __eq__(self):
         dict.__eq__(self)
+
         
     # Computes the meet of two fuzzy sets
     def meet(fSet1,fSet2):
@@ -233,16 +232,13 @@ class Sheaf(nx.Graph):
                 else: edgeIndices = (node, nghbr)
                 attrib_fSet1 = self.deriv_up(node, edgeIndices)
                 attrib_fSet2 = self.deriv_up(nghbr, edgeIndices)
-                meet = FuzzySet.meet(attrib_fSet1, attrib_fSet2)
+                meet = FuzzySet.meet(attrib_fSet1, attrib_fSet2) #meet
                 update = self.deriv_down(node, edgeIndices, meet)
                 updates.append(update)
-            new_state = FuzzySet.join2(updates) 
-            new_states.append((node,new_state))
-        for state in new_states:
-            self.updateVertex(state[0], state[1])
-        return
+            new_state = FuzzySet.join2(updates) # join
+            new_states.append([node,new_state])
+        return new_states
         
-
 
     def deriv_up(self, vertIndex, edgeIndices):
         vert = self.getVertex(vertIndex)
@@ -290,39 +286,62 @@ class Sheaf(nx.Graph):
            # Number of node states displayed can be changed below
            if node > 5: print('Other node states repressed...'); break
        
-    '''
-    def nodeUpdate(self, vertIndex, num_iter):
-        print('Node ' + str(vertIndex) + ' after 0 iterations: ' + self.getVertex(vertIndex).fSet.__repr__())
-        for i in range(1, num_iter+1):
-            self.Laplacian()
-            print('Node ' + str(vertIndex) + ' after ' + str(i) + ' iterations: ' +self.getVertex(vertIndex).fSet.__repr__())
-        return 
-    '''    
+
     
-    def nodeUpdate(self, vertIndex, num_iter):
-        print('Node ' + str(vertIndex) + ' after 0 iterations: ' + self.getVertex(vertIndex).fSet.__repr__())
-        new_sheaf = copy.deepcopy(self)
-        for i in range(1, num_iter+1):
-            new_sheaf.Laplacian()
-            print('Node ' + str(vertIndex) + ' after ' + str(i) + ' iterations: ' +new_sheaf.getVertex(vertIndex).fSet.__repr__())
+    def update(self, num_iter = 1):
+        for i in range(num_iter):
+            new_states = self.Laplacian()    
+            for state in new_states:
+                # meet/join with identity 
+                state[1] = FuzzySet.join(state[1], self.getVertex(state[0]).fSet) #join
+                self.updateVertex(state[0], state[1])            
         return 
     
-    def allNodeUpdate(self, num_iter):
+    def printFutureStates(self, num_iter = 1):
         for node in list(self.nodes):
             print('Node ' + str(node) + ' after 0 iterations: ' + self.getVertex(node).fSet.__repr__())
         new_sheaf = copy.deepcopy(self)
         print()
         for i in range(1,num_iter):
-            new_sheaf.Laplacian()
+            new_sheaf.update()
             for node in list(self.nodes):
-                print('Node ' + str(node) + ' after ' + str(i) + ' iterations: ' +new_sheaf.getVertex(node).fSet.__repr__())
+                print('Node ' + str(node) + ' after ' + str(i) + ' iterations: ' + new_sheaf.getVertex(node).fSet.__repr__())
             print()
-                        
+            
+
     def isSection(self):
         new_sheaf = copy.deepcopy(self)
-        new_sheaf.Laplacian()
+        new_sheaf.update()
         isSection = True
         for node in list(self.nodes):
             if self.getVertex(node).fSet != new_sheaf.getVertex(node).fSet:
                 isSection = False
         return isSection
+    
+    def plotEvolution(self, num_iter, obj):
+        new_sheaf = copy.deepcopy(self)       
+        time = np.arange(num_iter)
+        all_node_states = {}
+        for node in list(self.nodes):
+            if obj not in self.getVertex(node).fSet:
+                continue
+            else: 
+                node_states = [ self.getVertex(node).fSet[obj] ]
+                all_node_states[node] = node_states
+        for i in range(1,num_iter):
+            new_sheaf.update()          
+            for node in all_node_states:
+                all_node_states[node].append(new_sheaf.getVertex(node).fSet[obj])    
+        
+        if len(all_node_states) == 0:
+            print('No nodes with object: ',obj)
+            return
+        else:
+            plt.figure(figsize=(10, 8))
+            for node in all_node_states:
+                plt.plot(time,all_node_states[node], label = 'Node ' + str(node))
+            plt.xlabel('Time Step')
+            plt.ylabel('Favor')
+            plt.title('Opinions about ' + obj)
+            plt.legend()
+            
