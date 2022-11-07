@@ -122,22 +122,24 @@ class FuzzySet(dict):
         for key in fSet_lst[0].keys():
             vals = []
             for i in range(len(fSet_lst)):
-                vals.append(fSet_lst[i][key])
+                if wgt_lst[i] == 0: vals.append(1)
+                else: vals.append(fSet_lst[i][key])
             values.append(max(vals))
         result = FuzzySet( fSet_lst[0].domain,values)
         return result
     
-    def wgt_list_meet(fSet_lst,wgt_lst):
+    def wgt_list_meet(fSet_lst, wgt_lst):
         values = []
         assert(len(fSet_lst) > 0)
+        assert(len(fSet_lst) == len(wgt_lst))
         for key in fSet_lst[0].keys():
             vals = []
             for i in range(len(fSet_lst)):
-                if wgt_lst[i] == 0: continue
-                vals.append(fSet_lst[i][key])
-            values.append(min(vals))
+                if wgt_lst[i] == 0: vals.append(1)
+                else: vals.append(fSet_lst[i][key])
+            values.append(max(vals))
         result = FuzzySet( fSet_lst[0].domain,values)
-        return result 
+        return result
 '''
 The FuzzyRelation class stores an object-attribute relationship matrix
 along with the lists of objects and attributes. We also store a dictionary
@@ -190,8 +192,8 @@ class Vertex:
         return
     
 class Edge:
-     def __init__(self, attributes, weights = np.ones(4)):
-         # Ordering ar as follows (v = vert1, w = vert2):
+     def __init__(self, attributes, weights = [1,1,1,1]):
+         # Ordering is as follows (v = vert1, w = vert2, v < w as indices):
          # vv
          # ww
          # vw
@@ -344,19 +346,27 @@ class Sheaf(nx.Graph):
         new_states = []
         for node in list(self.nodes):
             updates = []
+            wgt_lst = []
             for nghbr in self.neighbors(node):
                 if node > nghbr:
                     edgeIndices = (nghbr, node)
-                else: edgeIndices = (node, nghbr)
+                    edge = self.getEdge(edgeIndices)
+                    wgt_lst.append[ edge.weights[1] ] # weight ww
+                    w1 = edge.weights[3] # weight for wv
+                    w2 = edge.weights[2] # weight for vw
+                else: 
+                    edgeIndices = (node, nghbr)
+                    edge = self.getEdge(edgeIndices)
+                    wgt_lst.append[ edge.weights[0] ] # weight vv
+                    w1 = edge.weights[2] # weight for vw
+                    w2 = edge.weights[3] # weight for wv
                 # Can the deriv ops be weighted so that they still give an adjunction?
                 attrib_fSet1 = self.deriv_up(node, edgeIndices)
                 attrib_fSet2 = self.deriv_up(nghbr, edgeIndices)
-                w1 = self.getEdge(edgeIndices).weights[0] # weight for vv
-                w2 = self.getEdge(edgeIndices).weights[0] # weight for ww
                 meet = FuzzySet.weighted_meet(attrib_fSet1, attrib_fSet2, w1, w2) #meet
                 update = self.deriv_down(node, edgeIndices, meet)
                 updates.append(update)
-            new_state = FuzzySet.join2(updates) # join
+            new_state = FuzzySet.wgt_list_join(updates, wgt_lst) # join
             new_states.append([node,new_state])
         return new_states
 
