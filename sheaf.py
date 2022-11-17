@@ -50,7 +50,7 @@ class FuzzySet(dict):
         return fSet
     
     # Computes the meet of a list of fuzzy sets
-    def meet2(fSet_lst):
+    def lst_meet(fSet_lst):
         values = []
         assert(len(fSet_lst) > 0)
         for key in fSet_lst[0].keys():
@@ -69,7 +69,7 @@ class FuzzySet(dict):
         fSet = FuzzySet(fSet1.domain, values)
         return fSet
 
-    def join2(fSet_lst):
+    def lst_join(fSet_lst):
         values = []
         assert(len(fSet_lst) > 0)
         for key in fSet_lst[0].keys():
@@ -80,65 +80,59 @@ class FuzzySet(dict):
         result = FuzzySet( fSet_lst[0].domain,values)
         return result 
         
-    def weighted_meet(fSet1, fSet2, w1,w2): # could we have a vector of weights for each object?
+    def weighted_meet(fSet1, fSet2, w1,w2, residuum): # could we have a vector of weights for each object?
         assert(fSet1.keys() == fSet2.keys()) # make sure fuzzy set domains are the same 
         values = []
-        if w1 == 0 and w2 == 0:
-            for key in fSet1.keys():
-                values.append( 1 )
-        elif w1 == 0:
-            for key in fSet1.keys():
-                values.append( min(fSet2[key]/w2, 1 ))
-        elif w2 == 0:
-            for key in fSet1.keys():
-                values.append( min(fSet1[key]/w1, 1 ))
-        else:
-            for key in fSet1.keys():
-                values.append( min(fSet1[key]/w1,fSet2[key]/w2, 1 ))
-        fSet = FuzzySet( fSet1.domain,values)
+        if residuum == 'prod':
+            if w1 == 0 and w2 == 0:
+                for key in fSet1.keys():
+                    values.append( 1 )
+            elif w1 == 0:
+                for key in fSet1.keys():
+                    values.append( min(fSet2[key]/w2, 1 ))
+            elif w2 == 0:
+                for key in fSet1.keys():
+                    values.append( min(fSet1[key]/w1, 1 ))
+            else:
+                for key in fSet1.keys():
+                    values.append( min(fSet1[key]/w1,fSet2[key]/w2, 1 ))
+            fSet = FuzzySet( fSet1.domain,values)
         return fSet
     
-    def weighted_join(fSet1, fSet2, w1,w2):
-        assert(fSet1.keys() == fSet2.keys()) # make sure fuzzy set domains are the same 
+    def weighted_join(fSet1, fSet2, w1,w2, residuum):
+        assert(fSet1.keys() == fSet2.keys()) 
         values = []
-        if w1 == 0 and w2 == 0:
+        if residuum == 'prod':
             for key in fSet1.keys():
-                values.append( 1 )
-        elif w1 == 0:
-            for key in fSet1.keys():
-                values.append( max(fSet2[key]/w2, 0 ))
-        elif w2 == 0:
-            for key in fSet1.keys():
-                values.append( max(fSet1[key]/w1, 0 ))
-        else:
-            for key in fSet1.keys():
-                values.append( max(fSet1[key]/w1,fSet2[key]/w2, 0 ))
-        fSet = FuzzySet( fSet1.domain,values)
+                values.append( max(fSet1[key]*w1 ,fSet2[key]*w2) )
+            fSet = FuzzySet(fSet1.domain, values)
         return fSet
     
-    def wgt_list_join(fSet_lst, wgt_lst):
+    def wgt_list_join(fSet_lst, wgt_lst, residuum):
         values = []
         assert(len(fSet_lst) > 0)
-        for key in fSet_lst[0].keys():
-            vals = []
-            for i in range(len(fSet_lst)):
-                if wgt_lst[i] == 0: vals.append(1)
-                else: vals.append(fSet_lst[i][key])
-            values.append(max(vals))
-        result = FuzzySet( fSet_lst[0].domain,values)
+        if residuum == 'prod':
+            for key in fSet_lst[0].keys():
+                vals = []
+                for i in range(len(fSet_lst)):
+                    if wgt_lst[i] == 0: vals.append(0)
+                    else: vals.append(fSet_lst[i][key] * wgt_lst[i])
+                values.append(max(vals))
+            result = FuzzySet( fSet_lst[0].domain,values)
         return result
     
-    def wgt_list_meet(fSet_lst, wgt_lst):
+    def wgt_list_meet(fSet_lst, wgt_lst, residuum):
         values = []
-        assert(len(fSet_lst) > 0)
-        assert(len(fSet_lst) == len(wgt_lst))
-        for key in fSet_lst[0].keys():
-            vals = []
-            for i in range(len(fSet_lst)):
-                if wgt_lst[i] == 0: vals.append(1)
-                else: vals.append(fSet_lst[i][key])
-            values.append(max(vals))
-        result = FuzzySet( fSet_lst[0].domain,values)
+        if residuum == 'prod':
+            assert(len(fSet_lst) > 0)
+            assert(len(fSet_lst) == len(wgt_lst))
+            for key in fSet_lst[0].keys():
+                vals = []
+                for i in range(len(fSet_lst)):
+                    if wgt_lst[i] == 0: vals.append(1)
+                    else: vals.append(fSet_lst[i][key] / wgt_lst[i])
+                values.append(min(vals))
+            result = FuzzySet( fSet_lst[0].domain,values)
         return result
 '''
 The FuzzyRelation class stores an object-attribute relationship matrix
@@ -224,7 +218,7 @@ class Relation:
 class Sheaf(nx.Graph):
     
     
-    def __init__(self, residuum = 'luka'):
+    def __init__(self, residuum = 'prod'):
         nx.Graph.__init__(self);
         self.relations = dict() 
         self.res = residuum
@@ -297,14 +291,15 @@ class Sheaf(nx.Graph):
                 else: edgeIndices = (node, nghbr)
                 attrib_fSet1 = self.deriv_up(node, edgeIndices)
                 attrib_fSet2 = self.deriv_up(nghbr, edgeIndices)
-                meet = FuzzySet.meet(attrib_fSet1, attrib_fSet2) #meet
+                meet = FuzzySet.join(attrib_fSet1, attrib_fSet2) # join (meet for opp lattice)
                 update = self.deriv_down(node, edgeIndices, meet)
                 updates.append(update)
-            new_state = FuzzySet.join2(updates) # join
+            new_state = FuzzySet.lst_meet(updates) # meet
             new_states.append([node,new_state])
         return new_states
         
 
+    # Meets or Joins here??
     def deriv_up(self, vertIndex, edgeIndices):
         vert = self.getVertex(vertIndex)
         edge = self.getEdge(edgeIndices)
@@ -351,22 +346,22 @@ class Sheaf(nx.Graph):
                 if node > nghbr:
                     edgeIndices = (nghbr, node)
                     edge = self.getEdge(edgeIndices)
-                    wgt_lst.append[ edge.weights[1] ] # weight ww
+                    wgt_lst.append( edge.weights[1] ) # weight ww
                     w1 = edge.weights[3] # weight for wv
                     w2 = edge.weights[2] # weight for vw
                 else: 
                     edgeIndices = (node, nghbr)
                     edge = self.getEdge(edgeIndices)
-                    wgt_lst.append[ edge.weights[0] ] # weight vv
+                    wgt_lst.append( edge.weights[0] ) # weight vv
                     w1 = edge.weights[2] # weight for vw
                     w2 = edge.weights[3] # weight for wv
                 # Can the deriv ops be weighted so that they still give an adjunction?
                 attrib_fSet1 = self.deriv_up(node, edgeIndices)
                 attrib_fSet2 = self.deriv_up(nghbr, edgeIndices)
-                meet = FuzzySet.weighted_meet(attrib_fSet1, attrib_fSet2, w1, w2) #meet
-                update = self.deriv_down(node, edgeIndices, meet)
+                fSet = FuzzySet.weighted_join(attrib_fSet1, attrib_fSet2, w1, w2, self.res) # join
+                update = self.deriv_down(node, edgeIndices, fSet)
                 updates.append(update)
-            new_state = FuzzySet.wgt_list_join(updates, wgt_lst) # join
+            new_state = FuzzySet.wgt_list_meet(updates, wgt_lst, self.res) # meet
             new_states.append([node,new_state])
         return new_states
 
@@ -390,7 +385,16 @@ class Sheaf(nx.Graph):
             new_states = self.Laplacian()    
             for state in new_states:
                 # meet/join with identity 
-                state[1] = FuzzySet.join(state[1], self.getVertex(state[0]).fSet) #join
+                state[1] = FuzzySet.meet(state[1], self.getVertex(state[0]).fSet) # meet
+                self.updateVertex(state[0], state[1])            
+        return 
+    
+    def wgt_update(self, num_iter = 1):
+        for i in range(num_iter):
+            new_states = self.weighted_Laplacian()    
+            for state in new_states:
+                # meet/join with identity 
+                state[1] = FuzzySet.meet(state[1], self.getVertex(state[0]).fSet) # meet
                 self.updateVertex(state[0], state[1])            
         return 
     
@@ -404,7 +408,17 @@ class Sheaf(nx.Graph):
             for node in list(self.nodes):
                 print('Node ' + str(node) + ' after ' + str(i) + ' iterations: ' + new_sheaf.getVertex(node).fSet.__repr__())
             print()
-            
+
+    def wgt_printFutureStates(self, num_iter = 1):
+        for node in list(self.nodes):
+            print('Node ' + str(node) + ' after 0 iterations: ' + self.getVertex(node).fSet.__repr__())
+        new_sheaf = copy.deepcopy(self)
+        print()
+        for i in range(1,num_iter):
+            new_sheaf.wgt_update()
+            for node in list(self.nodes):
+                print('Node ' + str(node) + ' after ' + str(i) + ' iterations: ' + new_sheaf.getVertex(node).fSet.__repr__())
+            print()            
 
     def isSection(self):
         new_sheaf = copy.deepcopy(self)
@@ -442,4 +456,11 @@ class Sheaf(nx.Graph):
             plt.ylabel('Favor')
             plt.title('Opinions about ' + obj)
             plt.legend()
+            
+    def drawIntensity(self,attrib_str):
+        colors = [[self.getVertex(node).fSet[attrib_str],0,0]  for node in self.nodes() ]
+        nx.draw(self, node_color = colors)
+    
+    
+    
             
