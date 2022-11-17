@@ -35,7 +35,7 @@ for i in range(num_edges):
     rand_edge = (1,2)
     while (rand_edge in list(politics.edges)) or (rand_edge[1] < rand_edge[0]):
         rand_edge = tuple(rand.sample(range(num_pts),2))
-    edgeToAdd = sh.Edge(all_attribs)
+    edgeToAdd = sh.Edge(all_attribs,np.ones(4))
     politics.addEdge(rand_edge[0], rand_edge[1], edgeToAdd)
     
 for pair in list(politics.relations):
